@@ -1,27 +1,34 @@
-// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const studentRoutes = require('./routes/studentRoutes');
-const cors = require('cors')
+const cors = require('cors');
 const app = express();
+
+// Middleware setup
 app.use(bodyParser.json());
 
+// CORS configuration (before routes)
+app.use(cors({
+  origin: '*', // If you don't need credentials, this works
+  methods: ['GET', 'PUT', 'POST', 'DELETE'], // Optional, to specify allowed methods
+}));
+
+// Connect to MongoDB
 mongoose.connect('mongodb://localhost:27017/attendance-system', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
+// Define routes
 app.use('/api/students', studentRoutes);
-app.use(cors({
-  origin: '*',
-  // methods :['GET','PUT','POST','DELETE']
-}));
 
-app.get('/',async(req,res)=>{
-  return res.json("How")
-})
+// Example route
+app.get('/', async (req, res) => {
+  return res.json("How");
+});
 
+// Start the server
 app.listen(5000, () => {
   console.log('Server is running on port 5000');
 });

@@ -35,33 +35,27 @@ const RegisterStudent = () => {
     startVideo();
   }, []);
 
-  const handleRegister = async () => {
-    if (!isModelsLoaded) {
-      alert('Face models are not yet loaded. Please wait.');
-      return;
-    }
+ const handleRegister = async () => {
+  const video = document.getElementById('video');
+  const faceDescriptors = [];
 
-    const video = videoRef.current;
-    const detection = await faceapi.detectSingleFace(video)
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-    
-    if (!detection) {
-      alert('No face detected');
-      return;
+  // Capture multiple face descriptors
+  for (let i = 0; i < 20; i++) { // Number of snapshots can be adjusted
+    const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+    if (detection) {
+      faceDescriptors.push(detection.descriptor);
     }
+  }
 
-    const faceData = detection.descriptor;
-    const name = prompt('Enter student name:');
-    
-    try {
-      await axios.post('http://localhost:5000/api/students/register', { name, faceData });
-      alert('Student registered successfully');
-    } catch (error) {
-      console.error('Error registering student:', error);
-      alert('Error registering student.');
-    }
-  };
+  const name = prompt('Enter student name:');
+  if (faceDescriptors.length > 0) {
+    await axios.post('http://localhost:5000/api/students/register', { name, faceDescriptors });
+    alert('Student registered successfully');
+  } else {
+    alert('No faces detected for registration');
+  }
+};
+
 
   return (
     <div>

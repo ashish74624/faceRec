@@ -27,35 +27,28 @@ router.post('/register', async (req, res) => {
 
 // Route to recognize a student
 router.post('/recognize', async (req, res) => {
-  const { faceData } = req.body; // This is the descriptor sent from the frontend
+  const { faceData } = req.body;
 
   try {
-    // Get stored students and their face descriptors
     const storedStudents = await getStoredStudents();
-
-    // Convert incoming face descriptor to array (if it's not already an array)
     const queryFace = Array.isArray(faceData) ? faceData : Array.from(faceData);
-
-    console.log('Query face descriptor length:', queryFace.length);
 
     let recognizedStudent = null;
 
     for (let student of storedStudents) {
-      const storedFaceData = Array.isArray(student.faceData) ? student.faceData : Array.from(student.faceData);
+      const storedFaceDescriptors = student.faceData;
 
-      console.log(`Stored face descriptor length for student ${student.name}:`, storedFaceData.length);
+      // Compare against all stored face descriptors
+      for (let storedFaceData of storedFaceDescriptors) {
+        const isMatch = faceapi.euclideanDistance(queryFace, storedFaceData) < 0.8; // Adjust threshold as needed
 
-      // Check if the descriptor lengths match before comparison
-      if (queryFace.length !== storedFaceData.length) {
-        console.error('Descriptor length mismatch:', queryFace.length, storedFaceData.length);
-        continue; // Skip this student if the lengths don't match
+        if (isMatch) {
+          recognizedStudent = student;
+          break;
+        }
       }
 
-      // Using Euclidean distance to match the descriptors
-      const isMatch = faceapi.euclideanDistance(queryFace, storedFaceData) < 0.9;
-
-      if (isMatch) {
-        recognizedStudent = student;
+      if (recognizedStudent) {
         break;
       }
     }
@@ -70,5 +63,6 @@ router.post('/recognize', async (req, res) => {
     res.status(500).json({ message: 'Error recognizing student' });
   }
 });
+
 
 module.exports = router;

@@ -7,6 +7,8 @@ const app = express();
 
 // Middleware setup
 app.use(bodyParser.json());
+app.use(express.json({ limit: '200mb' }));  // Increase limit for large JSON payloads
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
 // CORS configuration (before routes)
 app.use(cors({

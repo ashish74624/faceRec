@@ -37,35 +37,24 @@ const RecognizeStudent = () => {
   }, []);
 
   const handleRecognize = async () => {
-    if (!isModelsLoaded) {
-      alert('Face models are not loaded yet. Please wait.');
-      return;
-    }
+  const video = document.getElementById('video');
+  const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
 
-    const video = videoRef.current;
-    const detection = await faceapi.detectSingleFace(video)
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-    
-    if (!detection) {
-      alert('No face detected');
-      return;
-    }
+  if (!detection) {
+    alert('No face detected. Please try again.');
+    return;
+  }
 
-    const faceData = detection.descriptor;
+  const faceData = detection.descriptor;
+  const response = await axios.post('http://localhost:5000/api/students/recognize', { faceData });
 
-    try {
-      const response = await axios.post('http://localhost:5000/api/students/recognize', { faceData });
-      if (response.data.student) {
-        alert(`Student recognized: ${response.data.student.name}`);
-      } else {
-        alert('No match found');
-      }
-    } catch (error) {
-      console.error('Error during face recognition:', error);
-      alert('An error occurred while recognizing the student.');
-    }
-  };
+  if (response.data.student) {
+    alert(`Student recognized: ${response.data.student.name}`);
+  } else {
+    alert('No match found. Try again or register if not registered.');
+  }
+};
+
 
   return (
     <div>

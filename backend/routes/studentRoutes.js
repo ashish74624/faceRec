@@ -1,68 +1,52 @@
+// studentRoutes.js
 const express = require('express');
 const router = express.Router();
-const faceapi = require('face-api.js'); // Assuming face-api.js is set up in your project
-const Student = require('../models/Student'); // Assuming you have a Student model
+const Student = require('../models/Student');
 
-// Helper function to get stored students from your database
-const getStoredStudents = async () => {
-  // Fetch all registered students from the database (including face descriptors)
-  return await Student.find({}, 'name faceData');
-};
-
-// Route to register a new student
+// Register a new student
+// studentRoutes.js
 router.post('/register', async (req, res) => {
-  const { name, faceData } = req.body;
-  
+  const { name, descriptors } = req.body;
+
   try {
-    // Create a new student with face descriptor
-    const newStudent = new Student({ name, faceData });
-    await newStudent.save();
-    
-    res.json({ message: 'Student registered successfully' });
+    const student = new Student({
+      name,
+      faceData: descriptors,  // store multiple descriptors
+    });
+    await student.save();
+    res.status(201).json({ message: 'Student registered successfully' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error registering student' });
+    res.status(500).json({ error: 'Failed to register student' });
   }
 });
 
-// Route to recognize a student
+
+// Recognize a student
 router.post('/recognize', async (req, res) => {
   const { faceData } = req.body;
+  const students = await Student.find();
+  
+  let recognizedStudent = null;
+  const threshold = 0.6; // Euclidean distance threshold
 
-  try {
-    const storedStudents = await getStoredStudents();
-    const queryFace = Array.isArray(faceData) ? faceData : Array.from(faceData);
-
-    let recognizedStudent = null;
-
-    for (let student of storedStudents) {
-      const storedFaceDescriptors = student.faceData;
-
-      // Compare against all stored face descriptors
-      for (let storedFaceData of storedFaceDescriptors) {
-        const isMatch = faceapi.euclideanDistance(queryFace, storedFaceData) < 0.8; // Adjust threshold as needed
-
-        if (isMatch) {
-          recognizedStudent = student;
-          break;
-        }
-      }
-
-      if (recognizedStudent) {
-        break;
-      }
+  for (const student of students) {
+    const distance = euclideanDistance(faceData, student.faceData);
+    if (distance < threshold) {
+      recognizedStudent = student;
+      break;
     }
+  }
 
-    if (recognizedStudent) {
-      res.json({ student: recognizedStudent });
-    } else {
-      res.json({ student: null, message: 'No match found' });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error recognizing student' });
+  if (recognizedStudent) {
+    res.json({ student: recognizedStudent });
+  } else {
+    res.json({ student: null });
   }
 });
 
+// Calculate Euclidean distance
+function euclideanDistance(arr1, arr2) {
+  return Math.sqrt(arr1.reduce((sum, value, index) => sum + Math.pow(value - arr2[index], 2), 0));
+}
 
 module.exports = router;

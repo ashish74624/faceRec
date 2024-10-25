@@ -1,74 +1,85 @@
-import React, { useEffect, useRef, useState } from 'react';
-import * as faceapi from 'face-api.js';
+// RegisterStudent.js
+import React, { useEffect, useState } from 'react';
+import * as tf from '@tensorflow/tfjs';
+import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
 import axios from 'axios';
 
-const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-
 const RegisterStudent = () => {
-  const videoRef = useRef();
-  const [isModelsLoaded, setIsModelsLoaded] = useState(false);
+  const [descriptors, setDescriptors] = useState([]);
+  const [detector, setDetector] = useState(null);
+  const maxCaptures = 20; // Max images to capture
+  const [isCapturing, setIsCapturing] = useState(false);
 
   useEffect(() => {
-    const loadModels = async () => {
-      try {
-        // Load models from the provided URL
-        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-        setIsModelsLoaded(true); // Mark models as loaded
-      } catch (error) {
-        console.error('Error loading models:', error);
+    const loadModel = async () => {
+      const model = await faceLandmarksDetection.createDetector(
+        faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh,
+        { runtime: 'tfjs' }
+      );
+      setDetector(model);
+    };
+
+    const setupWebcam = async () => {
+      const video = document.getElementById('video');
+
+      if (navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.srcObject = stream;
+          await video.play();
+        } catch (err) {
+          console.error('Error accessing webcam:', err);
+          alert('Error accessing webcam.');
+        }
       }
     };
 
-    const startVideo = () => {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          videoRef.current.srcObject = stream; // Attach the video stream to the video element
-        })
-        .catch(error => {
-          console.error('Error accessing camera:', error);
-        });
-    };
-
-    loadModels();
-    startVideo();
+    loadModel();
+    setupWebcam();
   }, []);
 
- const handleRegister = async () => {
-  const video = document.getElementById('video');
-  const faceDescriptors = [];
-
-  // Capture multiple face descriptors
-  for (let i = 0; i < 20; i++) { // Number of snapshots can be adjusted
-    const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
-    if (detection) {
-      faceDescriptors.push(detection.descriptor);
+  const captureFaceData = async () => {
+    const video = document.getElementById('video');
+    if (!detector) {
+      alert('Model not loaded yet');
+      return;
     }
-  }
 
-  const name = prompt('Enter student name:');
-  if (faceDescriptors.length > 0) {
-    await axios.post('http://localhost:5000/api/students/register', { name, faceDescriptors });
-    alert('Student registered successfully');
-  } else {
-    alert('No faces detected for registration');
-  }
-};
+    const faces = await detector.estimateFaces(video);
+    if (faces.length > 0) {
+      const faceData = faces[0].keypoints.map(point => [point.x, point.y]);
+      setDescriptors(prev => [...prev, faceData]);
+      console.log(`Captured image ${descriptors.length + 1}`);
+    } else {
+      console.log('No face detected. Trying again...');
+    }
+  };
 
+  const startCapturing = async () => {
+    setIsCapturing(true);
+    const interval = setInterval(() => {
+      if (descriptors.length < maxCaptures) {
+        captureFaceData();
+      } else {
+        clearInterval(interval);
+        setIsCapturing(false);
+        alert('Captured 20 images successfully.');
+      }
+    }, 1000); // Capture an image every second
+  };
+
+  const handleRegister = async () => {
+    const name = prompt('Enter student name:');
+    await axios.post('http://localhost:5000/api/students/register', { name, descriptors });
+    alert('Student registered with multiple images successfully');
+  };
 
   return (
     <div>
-      <video
-        ref={videoRef}
-        id="video"
-        autoPlay
-        muted
-        width="720"
-        height="560"
-        style={{ border: '1px solid black' }}
-      />
-      <button onClick={handleRegister}>Register Student</button>
+      <video id="video" autoPlay muted width="720" height="560" style={{ border: '1px solid black' }} />
+      <button onClick={startCapturing} disabled={isCapturing}>Start Capturing</button>
+      <button onClick={handleRegister} disabled={descriptors.length === 0}>Register Student</button>
+      <p>Captured Images: {descriptors.length}/{maxCaptures}</p>
     </div>
   );
 };
